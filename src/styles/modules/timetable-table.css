@@ -1,0 +1,86 @@
+.timetable-preview-section {
+  width: 100%;
+  margin-top: var(--spacing-xl);
+  border-top: 2px solid var(--border);
+  padding-top: var(--spacing-xl);
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-lg);
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+}
+
+.preview-header h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.timetable-wrapper {
+  background: white;
+  padding: var(--spacing-xl);
+  border: 1px solid var(--border);
+  width: 100%;
+  overflow-x: auto;
+}
+
+.timetable-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--border);
+}
+
+.timetable-table th {
+  background: var(--surface);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--border);
+  padding: var(--spacing-md);
+  text-align: left;
+}
+
+.timetable-table td {
+  border: 1px solid var(--border);
+  padding: var(--spacing-md);
+  vertical-align: top;
+}
+
+.col-day {
+  width: 12%;
+}
+
+.col-course {
+  width: 45%;
+}
+
+.col-time {
+  width: 20%;
+}
+
+.col-venue {
+  width: 15%;
+}
+
+.day-cell {
+  font-weight: 600;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.course-cell {
+  text-align: left;
+}
+
+.course-name {
+  font-weight: 600;
+  font-size: 1rem;
+  display: block;
+  margin-bottom: var(--spacing-xs);
+}

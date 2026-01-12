@@ -1,0 +1,87 @@
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    padding: 0;
+  }
+
+  .app-card {
+    border: none;
+  }
+}
+
+@media (max-width: 768px) {
+  #root {
+    padding: var(--spacing-md);
+  }
+
+  .app-card {
+    padding: var(--spacing-lg);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
+  .mixed-row {
+    grid-template-columns: 1fr;
+  }
+
+  .tick-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preview-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .timetable-wrapper {
+    padding: var(--spacing-md);
+  }
+
+  .col-day {
+    width: 15%;
+  }
+
+  .col-course {
+    width: 40%;
+  }
+
+  .col-time {
+    width: 22%;
+  }
+
+  .col-venue {
+    width: 18%;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-card {
+    padding: var(--spacing-md);
+  }
+
+  h1 {
+    font-size: 1.25rem;
+  }
+
+  .course-color-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .course-color-label {
+    width: 100%;
+  }
+
+  .preview-header {
+    flex-direction: column;
+  }
+
+  .preview-header .btn {
+    width: 100%;
+  }
+}

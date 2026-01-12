@@ -1,0 +1,93 @@
+.tick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+.tick-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.875rem;
+  text-align: left;
+  font-family: inherit;
+}
+
+.tick-item:hover {
+  border-color: var(--primary);
+  background: var(--surface);
+}
+
+.tick-item.selected {
+  background: #eff6ff;
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.tick-indicator {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.tick-item.selected .tick-indicator {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: white;
+}
+
+.searchable-select {
+  position: relative;
+  width: 100%;
+}
+
+.searchable-select-trigger {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+}
+
+.searchable-select-trigger:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.searchable-select.disabled .searchable-select-trigger {
+  background: var(--surface);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.searchable-select-value {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchable-select-value .placeholder {
+  color: var(--text-muted);
+}

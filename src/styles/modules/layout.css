@@ -1,0 +1,73 @@
+.app-card {
+  background: var(--bg);
+  padding: var(--spacing-2xl);
+  width: 100%;
+  max-width: 1200px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xl);
+}
+
+header {
+  text-align: center;
+  margin-bottom: var(--spacing-md);
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.2;
+}
+
+.subtitle {
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  margin-top: var(--spacing-xs);
+}
+
+.section-container {
+  width: 100%;
+}
+
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin: var(--spacing-xl) 0 var(--spacing-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: default;
+}
+
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.accordion-trigger {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.accordion-trigger:hover {
+  opacity: 0.8;
+}
+
+.accordion-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
