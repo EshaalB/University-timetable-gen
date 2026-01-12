@@ -54,7 +54,22 @@ const EditableTimetable = () => {
     if (!tableRef.current) return;
     setIsExporting(true);
     try {
-      const canvas = await html2canvas(tableRef.current, { scale: 2, backgroundColor: '#ffffff', useCORS: true });
+      const canvas = await html2canvas(tableRef.current, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        useCORS: true,
+        logging: false,
+        onclone: (clonedDoc) => {
+          const content = clonedDoc.querySelector('.timetable-wrapper');
+          if (content) {
+            content.style.overflow = 'visible';
+            content.style.width = 'fit-content';
+            content.style.height = 'auto';
+            content.style.padding = '20px';
+          }
+        },
+        windowWidth: 1200 // Use a desktop-like width during capture
+      });
       const link = document.createElement('a');
       link.download = `timetable-${Date.now()}.png`;
       link.href = canvas.toDataURL('image/png');

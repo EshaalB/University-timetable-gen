@@ -56,11 +56,12 @@ const AdditionalCourses = ({
             );
           })}
 
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '16px', width: '100%' }}>
             <button
               type="button"
               className="btn btn-secondary btn-add"
               onClick={addExtra}
+              style={{ width: '100%', maxWidth: '250px' }}
             >
               <Plus size={14} /> Add Course
             </button>

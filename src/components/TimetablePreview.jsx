@@ -2,8 +2,8 @@ import html2canvas from 'html2canvas';
 import { Download, Printer } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import { useTimetable } from '../context/TimetableContext';
-import { parseTime } from '../utils/timeUtils';
 import { COLOR_PALETTE, DAY_ORDER } from '../utils/constants';
+import { parseTime } from '../utils/timeUtils';
 import { sanitizeString } from '../utils/validation';
 
 const TimetablePreview = () => {
@@ -36,7 +36,17 @@ const TimetablePreview = () => {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
-        logging: false
+        logging: false,
+        onclone: (clonedDoc) => {
+          const content = clonedDoc.querySelector('.official-wrapper');
+          if (content) {
+            content.style.overflow = 'visible';
+            content.style.width = '1000px'; // Force a reasonable width for capture
+            content.style.height = 'auto';
+            content.style.padding = '40px';
+          }
+        },
+        windowWidth: 1200
       });
 
       const link = document.createElement('a');

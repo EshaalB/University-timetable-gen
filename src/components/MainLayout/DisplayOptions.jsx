@@ -10,6 +10,7 @@ const DisplayOptions = ({ displayOptions, setDisplayOptions, displayOptionsList 
           className={`tick-item ${displayOptions[opt.key] ? 'selected' : ''}`}
           onClick={() => setDisplayOptions(prev => ({ ...prev, [opt.key]: !prev[opt.key] }))}
           aria-pressed={displayOptions[opt.key]}
+          style={{ justifyContent: 'center' }}
         >
           <div className="tick-indicator">
             {displayOptions[opt.key] && <Check size={14} />}

@@ -1,4 +1,5 @@
-import { EXCLUDED_COURSES, DAYS } from './constants';
+import { EXCLUDED_COURSES } from './constants';
+import { parseTime } from './timeUtils';
 import { sanitizeString } from './validation';
 
 const DAY_VARIANTS = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -13,9 +14,51 @@ const DAY_MAP = {
   'SUNDAY': 'Sunday', 'SUN': 'Sunday'
 };
 
+const mergeSlots = (slots) => {
+  if (slots.length <= 1) return slots;
+
+  // Group by unique identifiers excluding time
+  const groups = {};
+  slots.forEach(slot => {
+    const key = `${slot.courseName}|${slot.section}|${slot.instructor}|${slot.room}|${slot.day}`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(slot);
+  });
+
+  const merged = [];
+  Object.values(groups).forEach(group => {
+    // Sort by start time
+    group.sort((a, b) => (parseTime(a.startTime) || 0) - (parseTime(b.startTime) || 0));
+
+    let current = null;
+    group.forEach(slot => {
+      if (!current) {
+        current = { ...slot };
+      } else {
+        const currentEnd = parseTime(current.endTime);
+        const nextStart = parseTime(slot.startTime);
+
+        // If they are adjacent (within 10 mins) or overlapping
+        if (nextStart !== null && currentEnd !== null && nextStart <= currentEnd + 10) {
+          const nextEnd = parseTime(slot.endTime);
+          if (nextEnd !== null && nextEnd > currentEnd) {
+            current.endTime = slot.endTime;
+          }
+        } else {
+          merged.push(current);
+          current = { ...slot };
+        }
+      }
+    });
+    if (current) merged.push(current);
+  });
+
+  return merged;
+};
+
 export const parseHeuristicExcel = (jsonData) => {
   if (!Array.isArray(jsonData)) return [];
-  const result = [];
+  const rawResults = [];
   let currentDay = '';
 
   // Find the row containing time ranges (e.g., "8:30 AM to 9:50 AM")
@@ -115,7 +158,7 @@ export const parseHeuristicExcel = (jsonData) => {
         const start = sanitizeString(timeParts[0]);
         const end = sanitizeString(timeParts[1]?.replace(/\.$/, ''));
 
-        result.push({
+        rawResults.push({
           courseName: course,
           section: section || 'All',
           instructor: instructor || 'N/A',
@@ -129,5 +172,5 @@ export const parseHeuristicExcel = (jsonData) => {
     }
   }
 
-  return result;
+  return mergeSlots(rawResults);
 };

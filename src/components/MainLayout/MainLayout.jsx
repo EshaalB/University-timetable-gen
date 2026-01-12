@@ -5,7 +5,7 @@ import { TIME_REGEX } from '../../utils/constants';
 import { showError, showSuccess } from '../../utils/errorHandler';
 import { parseHeuristicExcel } from '../../utils/heuristicParser';
 import { validateFile } from '../../utils/validation';
-import EditableTimetable from '../EditableTimetable';
+import EditableTimetable from '../EditableTimetable/EditableTimetable';
 import AdditionalCourses from './AdditionalCourses';
 import CourseSelection from './CourseSelection';
 import DisplayOptions from './DisplayOptions';

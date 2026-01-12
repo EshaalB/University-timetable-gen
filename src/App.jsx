@@ -1,4 +1,4 @@
-import MainLayout from './components/MainLayout'
+import MainLayout from './components/MainLayout/MainLayout'
 import { TimetableProvider } from './context/TimetableContext'
 import './styles/index.css'
 
