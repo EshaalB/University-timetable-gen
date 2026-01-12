@@ -20,6 +20,7 @@ const mergeSlots = (slots) => {
   // Group by unique identifiers excluding time
   const groups = {};
   slots.forEach(slot => {
+    // Unique key: course, section, instructor, room, day
     const key = `${slot.courseName}|${slot.section}|${slot.instructor}|${slot.room}|${slot.day}`;
     if (!groups[key]) groups[key] = [];
     groups[key].push(slot);
@@ -27,24 +28,37 @@ const mergeSlots = (slots) => {
 
   const merged = [];
   Object.values(groups).forEach(group => {
-    // Sort by start time
-    group.sort((a, b) => (parseTime(a.startTime) || 0) - (parseTime(b.startTime) || 0));
+    // Sort by start time (null values at the end)
+    group.sort((a, b) => {
+      const ta = parseTime(a.startTime);
+      const tb = parseTime(b.startTime);
+      if (ta === null) return 1;
+      if (tb === null) return -1;
+      return ta - tb;
+    });
 
     let current = null;
     group.forEach(slot => {
+      const nextStart = parseTime(slot.startTime);
+      const nextEnd = parseTime(slot.endTime);
+
       if (!current) {
         current = { ...slot };
       } else {
         const currentEnd = parseTime(current.endTime);
-        const nextStart = parseTime(slot.startTime);
 
-        // If they are adjacent (within 10 mins) or overlapping
-        if (nextStart !== null && currentEnd !== null && nextStart <= currentEnd + 10) {
-          const nextEnd = parseTime(slot.endTime);
+        // MERGE CRITERIA:
+        // 1. Overlapping (nextStart <= currentEnd)
+        // 2. Adjacent with small gap (nextStart <= currentEnd + 20)
+        // 3. One is missing time (if course and room match perfectly, we occasionally might merge, but usually time is key)
+
+        if (nextStart !== null && currentEnd !== null && nextStart <= currentEnd + 20) {
+          // It's a continuation. Extend the end time if the next one ends later.
           if (nextEnd !== null && nextEnd > currentEnd) {
             current.endTime = slot.endTime;
           }
         } else {
+          // Not mergeable. Push current and start new.
           merged.push(current);
           current = { ...slot };
         }
@@ -146,7 +160,13 @@ export const parseHeuristicExcel = (jsonData) => {
         if (fullMatch) {
           course = sanitizeString(fullMatch[1]);
           section = sanitizeString(fullMatch[2]);
-          instructor = sanitizeString(fullMatch[3].replace(/^:\s*/, '')) || 'N/A';
+          const potentialInstructor = sanitizeString(fullMatch[3].replace(/^:\s*/, '')) || 'N/A';
+          // If instructor looks like a time range (e.g. 8:30-9:50), it's probably wrong
+          if (/\d{1,2}:\d{2}/.test(potentialInstructor)) {
+            instructor = 'N/A';
+          } else {
+            instructor = potentialInstructor;
+          }
         } else {
           course = sanitizeString(text);
         }

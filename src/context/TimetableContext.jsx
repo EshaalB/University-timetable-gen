@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { EXCLUDED_COURSES } from '../utils/constants';
 import { COLOR_THEMES, getThemeColors } from '../utils/themes';
+import { parseTime } from '../utils/timeUtils';
 import { sanitizeObject, sanitizeString, validateSection } from '../utils/validation';
 
 const TimetableContext = createContext();
@@ -9,7 +10,9 @@ const STORAGE_KEYS = {
   display: 'timetable_display_v6',
   colors: 'timetable_colors_v6',
   theme: 'timetable_theme_v6',
-  editedClasses: 'timetable_edited_classes_v6'
+  editedClasses: 'timetable_edited_classes_v6',
+  selectedCourses: 'timetable_selected_v6',
+  extraSelections: 'timetable_extra_v6'
 };
 
 const safeParseJSON = (str, defaultValue) => {
@@ -27,8 +30,14 @@ export const TimetableProvider = ({ children }) => {
   const [rootSections, setRootSections] = useState([]);
   const [activeSection, setActiveSection] = useState('');
 
-  const [selectedCourseIds, setSelectedCourseIds] = useState([]);
-  const [extraSelections, setExtraSelections] = useState([]);
+  const [selectedCourseIds, setSelectedCourseIds] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.selectedCourses);
+    return saved ? safeParseJSON(saved, []) : [];
+  });
+  const [extraSelections, setExtraSelections] = useState(() => {
+    const saved = localStorage.getItem(STORAGE_KEYS.extraSelections);
+    return saved ? safeParseJSON(saved, []) : [];
+  });
   const [editedClasses, setEditedClasses] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.editedClasses);
     return saved ? safeParseJSON(saved, {}) : {};
@@ -52,6 +61,14 @@ export const TimetableProvider = ({ children }) => {
     const saved = localStorage.getItem(STORAGE_KEYS.colors);
     return saved ? safeParseJSON(saved, {}) : {};
   });
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.selectedCourses, JSON.stringify(selectedCourseIds));
+  }, [selectedCourseIds]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.extraSelections, JSON.stringify(extraSelections));
+  }, [extraSelections]);
 
   useEffect(() => {
     try {
@@ -182,6 +199,31 @@ export const TimetableProvider = ({ children }) => {
     });
   }, [activeSection, selectedCourseIds, extraSelections, getCoursesForSection, editedClasses]);
 
+  const conflicts = useMemo(() => {
+    const conflictSet = new Set();
+    const classes = finalActiveClasses;
+    for (let i = 0; i < classes.length; i++) {
+      for (let j = i + 1; j < classes.length; j++) {
+        const c1 = classes[i];
+        const c2 = classes[j];
+        if (c1.day === c2.day) {
+          const s1 = parseTime(c1.startTime);
+          const e1 = parseTime(c1.endTime);
+          const s2 = parseTime(c2.startTime);
+          const e2 = parseTime(c2.endTime);
+
+          if (s1 !== null && e1 !== null && s2 !== null && e2 !== null) {
+            if (s1 < e2 && e1 > s2) {
+              conflictSet.add(c1.id);
+              conflictSet.add(c2.id);
+            }
+          }
+        }
+      }
+    }
+    return conflictSet;
+  }, [finalActiveClasses]);
+
   const updateClassField = useCallback((classKey, field, value) => {
     setEditedClasses(prev => ({
       ...prev,
@@ -190,6 +232,11 @@ export const TimetableProvider = ({ children }) => {
         [field]: sanitizeString(value)
       }
     }));
+  }, []);
+
+  const clearAllSelections = useCallback(() => {
+    setSelectedCourseIds([]);
+    setExtraSelections([]);
   }, []);
 
   const value = {
@@ -202,6 +249,7 @@ export const TimetableProvider = ({ children }) => {
     extraSelections,
     setExtraSelections,
     finalActiveClasses,
+    conflicts,
     displayOptions,
     colorMap,
     selectedTheme,
@@ -213,6 +261,7 @@ export const TimetableProvider = ({ children }) => {
     getOrAssignColor,
     setDisplayOptions,
     setColorMap,
+    clearAllSelections,
     COLOR_THEMES
   };
 

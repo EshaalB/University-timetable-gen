@@ -1,9 +1,12 @@
+import { useTimetable } from '../../context/TimetableContext';
 import TimetableRow from './TimetableRow';
 
 const TimetableTable = ({
   tableRef, sortedClasses, getOrAssignColor, getContrastYIQ,
   displayOptions, editingCell, editValue, setEditValue, startEdit, saveEdit, cancelEdit
 }) => {
+  const { conflicts } = useTimetable();
+
   return (
     <div className="timetable-wrapper" ref={tableRef}>
       <table className="timetable-table">
@@ -22,11 +25,13 @@ const TimetableTable = ({
             const classKey = `${cls.day}-${cls.startTime}-${cls.name}`;
             const bgColor = getOrAssignColor(cls.name);
             const textColor = getContrastYIQ(bgColor);
+            const isConflicted = conflicts.has(cls.id);
 
             return (
               <TimetableRow
                 key={`${cls.day}-${cls.startTime}-${idx}`}
                 cls={cls} idx={idx} isFirstOfDay={isFirstOfDay} dayCount={dayCount} classKey={classKey} bgColor={bgColor} textColor={textColor}
+                isConflicted={isConflicted}
                 displayOptions={displayOptions} editingCell={editingCell} editValue={editValue} setEditValue={setEditValue} startEdit={startEdit} saveEdit={saveEdit} cancelEdit={cancelEdit}
               />
             );

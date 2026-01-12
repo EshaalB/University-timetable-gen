@@ -2,13 +2,16 @@ import { Edit2 } from 'lucide-react';
 import { sanitizeString } from '../../utils/validation';
 
 const TimetableRow = ({
-  cls, idx, isFirstOfDay, dayCount, classKey, bgColor, textColor,
+  cls, idx, isFirstOfDay, dayCount, classKey, bgColor, textColor, isConflicted,
   displayOptions, editingCell, editValue, setEditValue, startEdit, saveEdit, cancelEdit
 }) => {
   const sanitizedName = sanitizeString(cls.name);
 
   return (
-    <tr key={`${cls.day}-${cls.startTime}-${idx}`}>
+    <tr
+      key={`${cls.day}-${cls.startTime}-${idx}`}
+      style={isConflicted ? { borderLeft: '4px solid var(--error)' } : {}}
+    >
       {isFirstOfDay && (
         <td rowSpan={dayCount} className="day-cell">
           {editingCell === `${classKey}-day` ? (
@@ -26,7 +29,30 @@ const TimetableRow = ({
           )}
         </td>
       )}
-      <td className="course-cell" style={{ background: bgColor, color: textColor }}>
+      <td
+        className={`course-cell ${isConflicted ? 'conflicted' : ''}`}
+        style={{
+          background: bgColor,
+          color: textColor,
+          position: 'relative'
+        }}
+      >
+        {isConflicted && (
+          <div style={{
+            position: 'absolute',
+            top: '4px',
+            right: '4px',
+            background: 'var(--error)',
+            color: 'white',
+            fontSize: '10px',
+            padding: '2px 4px',
+            borderRadius: '4px',
+            fontWeight: 'bold',
+            zIndex: 1
+          }}>
+            CONFLICT
+          </div>
+        )}
         {editingCell === `${classKey}-name` ? (
           <input
             type="text" value={editValue} autoFocus className="edit-input"

@@ -65,33 +65,53 @@ const SearchableSelect = ({
     }
   }, [isOpen]);
 
+  const handleKeyDown = useCallback((e) => {
+    if (disabled) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsOpen(!isOpen);
+    } else if (e.key === 'Escape' && isOpen) {
+      setIsOpen(false);
+      setSearchTerm('');
+    }
+  }, [disabled, isOpen]);
+
   return (
     <div className={`searchable-select ${className} ${disabled ? 'disabled' : ''}`} ref={containerRef}>
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={disabled ? -1 : 0}
         className="searchable-select-trigger"
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        disabled={disabled}
+        onKeyDown={handleKeyDown}
         aria-label={ariaLabel || placeholder}
         aria-expanded={isOpen}
+        aria-haspopup="listbox"
       >
         <span className="searchable-select-value">
           {selectedLabel || <span className="placeholder">{placeholder}</span>}
         </span>
         <div className="searchable-select-actions">
           {value && !disabled && (
-            <button
-              type="button"
+            <span
+              role="button"
+              tabIndex={0}
               className="searchable-select-clear"
               onClick={handleClear}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  handleClear(e);
+                }
+              }}
               aria-label="Clear selection"
             >
               <X size={14} />
-            </button>
+            </span>
           )}
           <ChevronDown size={16} className={`chevron ${isOpen ? 'open' : ''}`} />
         </div>
-      </button>
+      </div>
 
       {isOpen && (
         <div className="searchable-select-dropdown">
@@ -102,13 +122,19 @@ const SearchableSelect = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setIsOpen(false);
+                  setSearchTerm('');
+                }
+              }}
               placeholder={placeholder}
               className="searchable-select-input"
             />
           </div>
-          <div className="searchable-select-options">
+          <div className="searchable-select-options" role="listbox">
             {filteredOptions.length === 0 ? (
-              <div className="searchable-select-empty">No options found</div>
+              <div className="searchable-select-empty" role="option">No options found</div>
             ) : (
               filteredOptions.map((opt, idx) => {
                 const optValue = typeof opt === 'string' ? opt : opt.value || '';
@@ -119,6 +145,8 @@ const SearchableSelect = ({
                   <button
                     key={optValue || idx}
                     type="button"
+                    role="option"
+                    aria-selected={isSelected}
                     className={`searchable-select-option ${isSelected ? 'selected' : ''}`}
                     onClick={() => handleSelect(optValue)}
                   >
