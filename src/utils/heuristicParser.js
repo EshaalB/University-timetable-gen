@@ -14,18 +14,49 @@ const DAY_MAP = {
   'SUNDAY': 'Sunday', 'SUN': 'Sunday'
 };
 
-// Extract embedded time override from course text like "[1:00 to 3:00]" or "[3:30-5:30]"
-const extractEmbeddedTime = (text) => {
-  const match = text.match(/\[(\d{1,2}:\d{2})\s*(?:to|-)\s*(\d{1,2}:\d{2})\]/i);
-  if (match) {
+// Extract embedded time override(s) from course text like "[1:00 to 3:00]" or "[2:30 to 4:20 & 4:30 to 5:20]"
+// Also extracts instructor name that appears after the time brackets
+// Returns array of time ranges for handling multiple ranges in one course
+const extractEmbeddedTimes = (text) => {
+  // Match the entire bracket content including multiple ranges
+  const bracketMatch = text.match(/\[([^\]]+)\]\s*(.*)/);
+  if (!bracketMatch) return null;
+
+  const bracketContent = bracketMatch[1];
+  const afterBracket = bracketMatch[2] ? bracketMatch[2].trim() : '';
+  const timeRanges = [];
+
+  // Split by & or 'and' to handle multiple ranges
+  const rangeParts = bracketContent.split(/\s*[&]\s*|\s+and\s+/i);
+
+  rangeParts.forEach(part => {
+    const timeMatch = part.match(/(\d{1,2}:\d{2})\s*(?:to|-)\s*(\d{1,2}:\d{2})/i);
+    if (timeMatch) {
+      timeRanges.push({
+        start: timeMatch[1].trim(),
+        end: timeMatch[2].trim()
+      });
+    }
+  });
+
+  if (timeRanges.length > 0) {
+    // The instructor might be after the brackets
+    // Clean it up - remove any remaining time patterns or special chars
+    let instructorAfterBracket = afterBracket
+      .replace(/^\s*:?\s*/, '') // Remove leading colon if any
+      .replace(/\d{1,2}:\d{2}.*$/, '') // Remove any remaining time patterns
+      .trim();
+
     return {
-      start: match[1].trim(),
-      end: match[2].trim(),
-      cleanedText: text.replace(/\s*\[\d{1,2}:\d{2}\s*(?:to|-)\s*\d{1,2}:\d{2}\]\s*/i, ' ').trim()
+      times: timeRanges,
+      instructorAfterBracket: instructorAfterBracket || null,
+      cleanedText: text.replace(/\s*\[[^\]]+\]\s*.*$/, '').trim() // Remove brackets and everything after
     };
   }
   return null;
 };
+
+
 
 const mergeSlots = (slots) => {
   if (slots.length <= 1) return slots;
@@ -165,9 +196,9 @@ export const parseHeuristicExcel = (jsonData) => {
         const contentStr = sanitizeString(cellContent?.toString() || '');
         if (contentStr.length < 3) continue;
 
-        // Check for embedded time override
-        const embeddedTime = extractEmbeddedTime(contentStr);
-        const textToProcess = embeddedTime ? embeddedTime.cleanedText : contentStr;
+        // Check for embedded time override(s) - can be multiple like [2:30 to 4:20 & 4:30 to 5:20]
+        const embeddedTimes = extractEmbeddedTimes(contentStr);
+        const textToProcess = embeddedTimes ? embeddedTimes.cleanedText : contentStr;
 
         const rawLines = textToProcess.split(/\n+/).map(l => sanitizeString(l)).filter(Boolean);
         const processedEntries = [];
@@ -188,25 +219,74 @@ export const parseHeuristicExcel = (jsonData) => {
           let section = 'All';
           let instructor = 'N/A';
 
-          // Advanced Regex for: Course Name (Section) : Instructor OR Course Name (Section) Instructor
-          const fullMatch = text.match(/^(.+?)\s*\((.+?)\)\s*:?\s*(.*)$/);
+          // Find all parentheses groups in the text
+          const allParens = [...text.matchAll(/\(([^)]+)\)/g)];
 
-          if (fullMatch) {
-            course = sanitizeString(fullMatch[1]);
-            section = sanitizeString(fullMatch[2]);
-            let potentialInstructor = sanitizeString(fullMatch[3].replace(/^:\s*/, '')) || 'N/A';
+          // Look for the parentheses that contains a section code pattern (like BFT-4A, BAF-2A, BSBA-2F)
+          // Section codes typically have format: 2-4 letters + optional dash + numbers + optional letter
+          const sectionPattern = /^[A-Z]{2,5}-?\d[A-Z]?\d?$/i;
+          let sectionMatch = null;
+          let sectionIndex = -1;
 
-            // Clean up instructor - remove any embedded time info that might have been partially captured
-            potentialInstructor = potentialInstructor.replace(/\[\d{1,2}:\d{2}.*$/, '').trim();
+          for (let i = allParens.length - 1; i >= 0; i--) {
+            const content = allParens[i][1].trim();
+            if (sectionPattern.test(content)) {
+              sectionMatch = allParens[i];
+              sectionIndex = i;
+              break;
+            }
+          }
+
+          if (sectionMatch) {
+            section = sanitizeString(sectionMatch[1]);
+
+            // Extract course name - everything before the section parentheses
+            const sectionStart = text.indexOf(sectionMatch[0]);
+            course = sanitizeString(text.substring(0, sectionStart));
+
+            // Extract instructor - everything after section parentheses (before time brackets if any)
+            let afterSection = text.substring(sectionStart + sectionMatch[0].length).trim();
+
+            // Remove time brackets and get instructor
+            afterSection = afterSection.replace(/^\s*:?\s*/, ''); // Remove leading colon
+            let potentialInstructor = afterSection.replace(/\s*\[.*$/, '').trim(); // Remove time brackets
 
             // If instructor looks like a time range (e.g. 8:30-9:50), it's probably wrong
-            if (/^\d{1,2}:\d{2}/.test(potentialInstructor)) {
-              instructor = 'N/A';
+            if (/^\d{1,2}:\d{2}/.test(potentialInstructor) || /^\[/.test(potentialInstructor)) {
+              potentialInstructor = '';
+            }
+
+            // Check if instructor was found after time brackets (format: Course (Section) [times] Instructor)
+            if (embeddedTimes && embeddedTimes.instructorAfterBracket && embeddedTimes.instructorAfterBracket.length > 1) {
+              instructor = embeddedTimes.instructorAfterBracket;
+            } else if (potentialInstructor && potentialInstructor.length > 1) {
+              instructor = potentialInstructor;
             } else {
-              instructor = potentialInstructor || 'N/A';
+              instructor = 'N/A';
             }
           } else {
-            course = sanitizeString(text);
+            // Fallback: try the original regex approach
+            const fullMatch = text.match(/^(.+?)\s*\((.+?)\)\s*:?\s*(.*)$/);
+            if (fullMatch) {
+              course = sanitizeString(fullMatch[1]);
+              section = sanitizeString(fullMatch[2]);
+              let potentialInstructor = sanitizeString(fullMatch[3].replace(/^:\s*/, '')) || '';
+              potentialInstructor = potentialInstructor.replace(/\[\d{1,2}:\d{2}.*$/, '').trim();
+
+              if (/^\d{1,2}:\d{2}/.test(potentialInstructor) || /^\[/.test(potentialInstructor)) {
+                potentialInstructor = '';
+              }
+
+              if (embeddedTimes && embeddedTimes.instructorAfterBracket && embeddedTimes.instructorAfterBracket.length > 1) {
+                instructor = embeddedTimes.instructorAfterBracket;
+              } else if (potentialInstructor && potentialInstructor.length > 1) {
+                instructor = potentialInstructor;
+              } else {
+                instructor = 'N/A';
+              }
+            } else {
+              course = sanitizeString(text);
+            }
           }
 
           const courseUpper = course.toUpperCase();
@@ -215,11 +295,15 @@ export const parseHeuristicExcel = (jsonData) => {
           // Skip empty courses
           if (!course || course.length < 2) return;
 
-          // Determine time - use embedded time if available, otherwise use column header
-          let start, end;
-          if (embeddedTime) {
-            start = embeddedTime.start;
-            end = embeddedTime.end;
+          // Determine times - use embedded times if available, otherwise use column header
+          // If multiple time ranges exist, create separate entries for each
+          const timeRangesToUse = [];
+
+          if (embeddedTimes && embeddedTimes.times.length > 0) {
+            // Use all embedded time ranges
+            embeddedTimes.times.forEach(t => {
+              timeRangesToUse.push({ start: t.start, end: t.end });
+            });
           } else {
             // Parse time from header, handling formats like "1:00 PM to 2:20 PM."
             const timeRange = sanitizeString(tc.range)
@@ -227,24 +311,30 @@ export const parseHeuristicExcel = (jsonData) => {
               .replace(/\s+/g, ' '); // Normalize whitespace
 
             const timeParts = timeRange.split(/\s*(?:to|TO|To|-)\s*/i);
-            start = sanitizeString(timeParts[0]);
-            end = sanitizeString(timeParts[1] || '');
+            timeRangesToUse.push({
+              start: sanitizeString(timeParts[0]),
+              end: sanitizeString(timeParts[1] || '')
+            });
           }
 
-          rawResults.push({
-            courseName: course,
-            section: section || 'All',
-            instructor: instructor || 'N/A',
-            room: room,
-            day: currentDay,
-            startTime: start,
-            endTime: end,
-            credits: ''
+          // Create a course entry for each time range
+          timeRangesToUse.forEach(timeRange => {
+            rawResults.push({
+              courseName: course,
+              section: section || 'All',
+              instructor: instructor || 'N/A',
+              room: room,
+              day: currentDay,
+              startTime: timeRange.start,
+              endTime: timeRange.end,
+              credits: ''
+            });
           });
         });
       }
     }
   }
+
 
   return mergeSlots(rawResults);
 };

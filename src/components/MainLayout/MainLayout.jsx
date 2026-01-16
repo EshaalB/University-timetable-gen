@@ -73,6 +73,25 @@ const MainLayout = () => {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
+
+        // Helper to expand merged cells
+        if (ws['!merges']) {
+          ws['!merges'].forEach(merge => {
+            const startStr = XLSX.utils.encode_cell(merge.s);
+            const startVal = ws[startStr];
+            if (!startVal) return;
+
+            for (let R = merge.s.r; R <= merge.e.r; ++R) {
+              for (let C = merge.s.c; C <= merge.e.c; ++C) {
+                const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+                if (!ws[cellRef]) {
+                  ws[cellRef] = { ...startVal }; // Clone the cell
+                }
+              }
+            }
+          });
+        }
+
         const rawMatrix = XLSX.utils.sheet_to_json(ws, { header: 1 });
         const hasGrid = rawMatrix.slice(0, 30).some(row => Array.isArray(row) && row.some(c => TIME_REGEX.test(String(c || '').trim())));
 
