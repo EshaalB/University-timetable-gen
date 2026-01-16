@@ -14,6 +14,19 @@ const DAY_MAP = {
   'SUNDAY': 'Sunday', 'SUN': 'Sunday'
 };
 
+// Extract embedded time override from course text like "[1:00 to 3:00]" or "[3:30-5:30]"
+const extractEmbeddedTime = (text) => {
+  const match = text.match(/\[(\d{1,2}:\d{2})\s*(?:to|-)\s*(\d{1,2}:\d{2})\]/i);
+  if (match) {
+    return {
+      start: match[1].trim(),
+      end: match[2].trim(),
+      cleanedText: text.replace(/\s*\[\d{1,2}:\d{2}\s*(?:to|-)\s*\d{1,2}:\d{2}\]\s*/i, ' ').trim()
+    };
+  }
+  return null;
+};
+
 const mergeSlots = (slots) => {
   if (slots.length <= 1) return slots;
 
@@ -88,6 +101,7 @@ export const parseHeuristicExcel = (jsonData) => {
         if (!item.cell) return false;
         const s = item.cell.toString().trim().toLowerCase();
         return s.includes('am to') || s.includes('pm to') ||
+          s.includes('a.m') || s.includes('p.m') ||
           /\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}/.test(s) ||
           /^\d{1,2}:\d{2}\s*(?:AM|PM)?$/i.test(s);
       });
@@ -104,91 +118,131 @@ export const parseHeuristicExcel = (jsonData) => {
 
   if (timeRowIndex === -1) return [];
 
+  // Sort time columns by their index to enable proper processing
+  timeColumns.sort((a, b) => a.colIndex - b.colIndex);
+
   for (let i = timeRowIndex + 1; i < jsonData.length; i++) {
     const row = jsonData[i];
     if (!row || row.length === 0) continue;
 
-    const firstCell = sanitizeString(row[0]?.toString() || '').toUpperCase();
+    // Check if this row starts a new day
+    const firstCell = sanitizeString(row[0]?.toString() || '').toUpperCase().replace(/[^A-Z]/g, '');
     if (firstCell && DAY_VARIANTS.includes(firstCell)) {
       currentDay = DAY_MAP[firstCell] || '';
     }
 
+    // Skip rows before we've found a day
     if (!currentDay) continue;
 
-    const room = sanitizeString(row[1]?.toString() || row[2]?.toString() || '');
-    if (!room || ['Room', 'Periods', 'Days'].includes(room) || room.length < 2) continue;
+    // Extract room from column 1 or 2, use 'TBD' if not available
+    let room = sanitizeString(row[1]?.toString() || '');
+    if (!room || room.length < 2) {
+      room = sanitizeString(row[2]?.toString() || '');
+    }
 
-    // Find the first and last time columns to define the processing range
-    const timeColIndices = timeColumns.map(tc => tc.colIndex);
-    const minCol = Math.min(...timeColIndices);
+    // Skip header-like rows but don't be too strict
+    if (['Room', 'Periods', 'Days', 'ROOM', 'PERIODS', 'DAYS'].includes(room)) continue;
 
-    for (let colIdx = minCol; colIdx < row.length; colIdx++) {
-      const cellContent = row[colIdx];
-      if (!cellContent) continue;
+    // If room is still empty, use TBD but continue processing
+    if (!room || room.length < 1) {
+      room = 'TBD';
+    }
 
-      const tc = [...timeColumns]
-        .sort((a, b) => b.colIndex - a.colIndex)
-        .find(t => t.colIndex <= colIdx);
+    // Process each time slot column
+    for (let tcIdx = 0; tcIdx < timeColumns.length; tcIdx++) {
+      const tc = timeColumns[tcIdx];
+      const nextTc = timeColumns[tcIdx + 1];
 
-      if (!tc) continue;
+      // Determine the column range for this time slot
+      const startCol = tc.colIndex;
+      const endCol = nextTc ? nextTc.colIndex : row.length;
 
-      const contentStr = sanitizeString(cellContent?.toString() || '');
-      if (contentStr.length < 3) continue;
+      // Check all cells in this time slot's column range
+      for (let colIdx = startCol; colIdx < endCol; colIdx++) {
+        const cellContent = row[colIdx];
+        if (!cellContent) continue;
 
-      const rawLines = contentStr.split(/\n+/).map(l => sanitizeString(l)).filter(Boolean);
-      const processedEntries = [];
-      let currentEntry = '';
+        const contentStr = sanitizeString(cellContent?.toString() || '');
+        if (contentStr.length < 3) continue;
 
-      rawLines.forEach(line => {
-        if (line.includes('(')) {
-          if (currentEntry) processedEntries.push(currentEntry);
-          currentEntry = line;
-        } else {
-          currentEntry = currentEntry ? currentEntry + ' ' + line : line;
-        }
-      });
-      if (currentEntry) processedEntries.push(currentEntry);
+        // Check for embedded time override
+        const embeddedTime = extractEmbeddedTime(contentStr);
+        const textToProcess = embeddedTime ? embeddedTime.cleanedText : contentStr;
 
-      processedEntries.forEach(text => {
-        let course = '';
-        let section = 'All';
-        let instructor = 'N/A';
+        const rawLines = textToProcess.split(/\n+/).map(l => sanitizeString(l)).filter(Boolean);
+        const processedEntries = [];
+        let currentEntry = '';
 
-        // Advanced Regex for: Course Name (Section) : Instructor OR Course Name (Section) Instructor
-        const fullMatch = text.match(/^(.+?)\s*\((.+?)\)\s*:?\s*(.*)$/);
-
-        if (fullMatch) {
-          course = sanitizeString(fullMatch[1]);
-          section = sanitizeString(fullMatch[2]);
-          const potentialInstructor = sanitizeString(fullMatch[3].replace(/^:\s*/, '')) || 'N/A';
-          // If instructor looks like a time range (e.g. 8:30-9:50), it's probably wrong
-          if (/\d{1,2}:\d{2}/.test(potentialInstructor)) {
-            instructor = 'N/A';
+        rawLines.forEach(line => {
+          if (line.includes('(')) {
+            if (currentEntry) processedEntries.push(currentEntry);
+            currentEntry = line;
           } else {
-            instructor = potentialInstructor;
+            currentEntry = currentEntry ? currentEntry + ' ' + line : line;
           }
-        } else {
-          course = sanitizeString(text);
-        }
-
-        const courseUpper = course.toUpperCase();
-        if (EXCLUDED_COURSES.some(word => courseUpper.includes(word))) return;
-
-        const timeParts = sanitizeString(tc.range).split(/(?:to|TO|To|-)/i);
-        const start = sanitizeString(timeParts[0]);
-        const end = sanitizeString(timeParts[1]?.replace(/\.$/, ''));
-
-        rawResults.push({
-          courseName: course,
-          section: section || 'All',
-          instructor: instructor || 'N/A',
-          room: room,
-          day: currentDay,
-          startTime: start,
-          endTime: end,
-          credits: ''
         });
-      });
+        if (currentEntry) processedEntries.push(currentEntry);
+
+        processedEntries.forEach(text => {
+          let course = '';
+          let section = 'All';
+          let instructor = 'N/A';
+
+          // Advanced Regex for: Course Name (Section) : Instructor OR Course Name (Section) Instructor
+          const fullMatch = text.match(/^(.+?)\s*\((.+?)\)\s*:?\s*(.*)$/);
+
+          if (fullMatch) {
+            course = sanitizeString(fullMatch[1]);
+            section = sanitizeString(fullMatch[2]);
+            let potentialInstructor = sanitizeString(fullMatch[3].replace(/^:\s*/, '')) || 'N/A';
+
+            // Clean up instructor - remove any embedded time info that might have been partially captured
+            potentialInstructor = potentialInstructor.replace(/\[\d{1,2}:\d{2}.*$/, '').trim();
+
+            // If instructor looks like a time range (e.g. 8:30-9:50), it's probably wrong
+            if (/^\d{1,2}:\d{2}/.test(potentialInstructor)) {
+              instructor = 'N/A';
+            } else {
+              instructor = potentialInstructor || 'N/A';
+            }
+          } else {
+            course = sanitizeString(text);
+          }
+
+          const courseUpper = course.toUpperCase();
+          if (EXCLUDED_COURSES.some(word => courseUpper.includes(word))) return;
+
+          // Skip empty courses
+          if (!course || course.length < 2) return;
+
+          // Determine time - use embedded time if available, otherwise use column header
+          let start, end;
+          if (embeddedTime) {
+            start = embeddedTime.start;
+            end = embeddedTime.end;
+          } else {
+            // Parse time from header, handling formats like "1:00 PM to 2:20 PM."
+            const timeRange = sanitizeString(tc.range)
+              .replace(/\.+$/, '') // Remove trailing periods
+              .replace(/\s+/g, ' '); // Normalize whitespace
+
+            const timeParts = timeRange.split(/\s*(?:to|TO|To|-)\s*/i);
+            start = sanitizeString(timeParts[0]);
+            end = sanitizeString(timeParts[1] || '');
+          }
+
+          rawResults.push({
+            courseName: course,
+            section: section || 'All',
+            instructor: instructor || 'N/A',
+            room: room,
+            day: currentDay,
+            startTime: start,
+            endTime: end,
+            credits: ''
+          });
+        });
+      }
     }
   }
 
